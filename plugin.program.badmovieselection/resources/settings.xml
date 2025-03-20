@@ -1,0 +1,15 @@
+<!-- SETTINGS IDEAS -->
+<!-- 1. Wheel spin duration as integer -->
+<!-- 2. Number of movies to selection (default 10)-->
+<!-- 3. Tag to filter by (default 'Bad Movies')-->
+<!-- 4. Sound effects on/off [bool]-->
+<!-- 5. Exclude movies from ever being chosen -->
+
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+    <category label="32001">
+        <setting id="excluded_movie1" type="text" label="Excluded Movie 1" default="Star Wars: Episode I - The Phantom Menace"/>
+        <setting id="excluded_movie2" type="text" label="Excluded Movie 2" default="Batman & Robin"/>
+        <setting id="excluded_movie3" type="text" label="Excluded Movie 3" default="Star Trek V: The Final Frontier" />
+    </category>
+</settings>
