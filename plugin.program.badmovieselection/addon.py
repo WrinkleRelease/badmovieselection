@@ -3,12 +3,14 @@ import xbmcaddon
 import xbmcgui
 import json
 import random
+import os
 
 ## MARK: Global Information
 # Global addon information
 ADDON = xbmcaddon.Addon()
-ADDON_NAME = ADDON.getAddonInfo('name')  # Gets the name from addon.xml
-ADDON_ID = ADDON.getAddonInfo('id')  # Gets the ID from addon.xml
+ADDON_NAME = ADDON.getAddonInfo('name') 
+ADDON_ID = ADDON.getAddonInfo('id') 
+ADDON_PATH = ADDON.getAddonInfo('path')
 
 # Sets up our main function to handle the behavior of the plugin
 class BadMovieSelection:
@@ -16,8 +18,7 @@ class BadMovieSelection:
         self.addon = ADDON
         self.addon_name = ADDON_NAME
         self.addon_id = ADDON_ID
-        
-        # Get excluded movies from settings.xml
+        self.media_path = os.path.join(ADDON_PATH, 'resources', 'media')
         self.excluded_movies = self.get_excluded_movies()
         
     #-----------------------
@@ -39,14 +40,14 @@ class BadMovieSelection:
     ## MARK: Movies List
     #-------------------
     def get_movies(self):
-        xbmc.log(f"{self.addon_name}: Starting get_movies()", xbmc.LOGDEBUG)
+        xbmc.log(f"{self.addon_name}: Starting get_movies()", xbmc.LOGINFO)
 
         # JSON-RPC method to get the movies 
         json_request = {
             "jsonrpc": "2.0",
             "method": "VideoLibrary.GetMovies",
             "params": {
-                "properties": ["title", "playcount", "tag"],
+                "properties": ["title"],
                 "filter": {
                     "and": [
                         {"field": "playcount", "operator": "is", "value": "0"},
@@ -59,53 +60,92 @@ class BadMovieSelection:
         
         # Execute the JSON-RPC request
         response = xbmc.executeJSONRPC(json.dumps(json_request))
+        xbmc.log(f"{self.addon_name}: Raw JSON Response: {response}", xbmc.LOGINFO)
         response = json.loads(response)
         
         # Check if we got any movies back
         if 'result' in response and 'movies' in response['result']:
             movies = response['result']['movies']
+            xbmc.log(f"{self.addon_name}: Found {len(movies)} movies before exclusion", xbmc.LOGINFO)
             
             # Filter out excluded movies here and produce a new list
             available_movies = [
                 movie for movie in movies
                 if movie['title'] not in self.excluded_movies
             ]
-            xbmc.log(f"{self.addon_name}: Available movies: {available_movies}", xbmc.LOGDEBUG)
+            xbmc.log(f"{self.addon_name}: Found {len(available_movies)} movies after exclusion", xbmc.LOGINFO)
             
-            # Randomly select up to 10 movies
-            # Uses the Python -random- module 
-            selected_movies = random.sample(available_movies, min(10, len(available_movies)))
-            titles = [movie['title'] for movie in selected_movies]
-
-            xbmc.log(f"{self.addon_name}: Selected titles: {titles}", xbmc.LOGDEBUG)
-
-            return titles
+            if available_movies:
+                return random.choice(available_movies)
+        return None
     
-        xbmc.log(f"{self.addon_name}: No movies found", xbmc.LOGDEBUG)
-        return []  # closes the 'if' statement; gives an empty string if no movies were found
+    #--------------
+    ## MARK: Sounds
+    #--------------
+    def play_sounds(self, sound_file):
+        sound_path = os.path.join(self.media_path, sound_file)
+        xbmc.executebuiltin(f'PlayMedia({sound_path}),1')
+        
+    # def play_movie(self, movie_id):
+    #     json_request = {
+    #         "jsonrpc": "2.0",
+    #         "method": "Player.Open",
+    #         "params": {
+    #             "item": {
+    #                 "movieid": movie_id
+    #             }
+    #         },
+    #         "id": 1
+    #     }
+    #     xbmc.executeJSONRPC(json.dumps(json_request))
 
-    # ---------------------
-    ## MARK: Display Movies
-    #----------------------
-    # We now have our movie titles in a string. The next step is to display them.
-    def display_movies(self, titles):
-        if not titles:
-            xbmcgui.Dialog().ok(self.addon_name, "No unwatched bad movies found! So sad!")
-            return # This exits the function early if there are no titles
-       
-        # Create wheel window
-        wheel_window = MovieWheel()
-       
-        # Create the wheel with the list of movies
-        wheel_window.create_wheel(titles)
-        wheel_window.show()
-        xbmc.sleep(5000)
-        wheel_window.close()
-       
+    #---------------
+    ## MARK: Display
+    #---------------
+    def display_result(self):
+    
+        # Get random movie
+        selected_movies = self.get_movies()
+        if not selected_movies:
+            xbmcgui.Dialog().ok(self.addon_name, "Oh no! No unwatched bad movies found!")
+            return
+
+        window = xbmcgui.WindowDialog()
+        background = xbmcgui.ControlImage(0, 0, 1920, 1080,
+                                          os.path.join(self.media_path, 'background.png'))
+        window.addControl(background)
+        window.show()
+
+        # Play drum roll and wait
+        self.play_sounds('drum_roll02.mp3')
+        xbmc.sleep(4700)
+        
+        # Play fail sound
+        fail_sounds = [f for f in os.listdir(self.media_path) if f.startswith('fail_sound')]
+        random_fail = random.choice(fail_sounds)
+        self.play_sounds(random_fail)
+        
+        # Show chosen movie
+        dialog = xbmcgui.Dialog()
+        dialog.ok(self.addon_name, selected_movies['title'])
+        xbmc.sleep(4000)
+        
+        # # Show dialog with movie title and buttons
+        # result = xbmcgui.Dialog().yesno(
+        #     self.addon_name,
+        #     selected_movies['title'],
+        #     yeslabel="Play Movie",
+        #     nolabel="Cancel"
+        # )
+        
+        # # If user plays movie
+        # if result:
+        #     self.play_movie(selected_movies['movieid'])
+        
 def run():
-    wheel = BadMovieWheel()
-    movies = wheel.get_movies()
-    wheel.display_movies(movies)
+    xbmc.log(f"{ADDON_NAME}: Starting plugin", xbmc.LOGINFO)
+    selector = BadMovieSelection()
+    selector.display_result()
     
 if __name__ == '__main__':
     run()
